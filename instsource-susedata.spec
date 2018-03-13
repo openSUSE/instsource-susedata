@@ -31,6 +31,7 @@ Requires:       openSUSE-EULAs
 Requires:       SLE-EULAs
 %endif
 Requires:       perl-XML-Structured
+Requires:       inst-source-utils
 Supplements:    kiwi-instsource
 BuildArch:      noarch
 
