@@ -1,0 +1,260 @@
+#!/usr/bin/perl
+
+BEGIN {
+  $abuild_base_dir = "/usr/share/inst-source-utils";
+  unshift @INC, "$abuild_base_dir/modules";
+}
+
+use XML::Structured ':bytes';
+use ABXML;
+use Digest;
+use Getopt::Std;
+use Compress::Zlib;
+use Encode;
+use FileHandle;
+use File::stat;
+use Data::Dumper;
+
+my $checksum_type = "SHA-256";
+my $checksum_type_md = "sha256";
+
+sub OpenFileRead {
+  my $filename = shift;
+  my ($FH) = new FileHandle;
+  open ($FH, "<", "$filename") || die "ERROR: can't read input file $filename";
+  return $FH;
+}
+
+sub ReadFileToHash {
+  my ($filename) = @_;
+  my (%temp);
+  my $FH = OpenFileRead( $filename );
+  while (<$FH>) {
+    chomp ($_);
+    last if ( $_ =~ /^:END/ );
+    next if ( $_ =~ /^\#/ );
+    next if ( $_ =~ /^\s$/ );
+    my ($le,$ri) = split (/:/, $_, 2 );
+    $le =~ s/^\s*(.*)\s*$/$1/;
+    $ri =~ s/^\s*(.*)\s*$/$1/;
+    $ri =~ s/\\n/\n/g;
+    $temp{$le}=$ri;
+  }
+  close ($FH);
+  return \%temp;
+}
+
+sub ReadKeywordFile {
+  my ($filename) = @_;
+  my (%temp) = %{ReadFileToHash($filename)};
+  for my $curpak (keys (%temp)) {
+    $temp{$curpak} =~ s/^.*\+Kwd://s;
+    $temp{$curpak} =~ s/\-Kwd:.*$//s;
+    $temp{$curpak} =~ s/^\n//s;
+    $temp{$curpak} =~ s/\n$//s;
+    $temp{$curpak} = [split("/n",$temp{$curpak})];
+  }
+  return \%temp;
+}
+
+sub str2utf8 {
+  my ($oct) = @_;
+  return $oct unless defined $oct;
+  return $oct unless $oct =~ /[^\011\012\015\040-\176]/s;
+  eval {
+    Encode::_utf8_on($oct);
+    $oct = encode('UTF-8', $oct, Encode::FB_CROAK);
+  };
+  if ($@) {
+    # assume iso-8859-1
+    eval {
+      Encode::_utf8_off($oct);
+      $oct = encode('UTF-8', $oct, Encode::FB_CROAK);
+    };
+    if ($@) {
+      Encode::_utf8_on($oct);
+      $oct = encode('UTF-8', $oct, Encode::FB_XMLCREF);
+    }
+  }
+  Encode::_utf8_off($oct);      # just in case...
+  return $oct;
+}
+
+sub str2utf8xml {
+  my ($oct) = @_;
+  return $oct unless defined $oct;
+  return $oct unless $oct =~ /[^\011\012\015\040-\176]/s;
+  $oct = str2utf8($oct);
+  Encode::_utf8_on($oct);
+  # xml does not accept all utf8 chars, escape the illegal
+  $oct =~ s/([\000-\010\013\014\016-\037\177])/sprintf("&#x%x;",ord($1))/sge;
+  $oct =~ s/([\x{d800}-\x{dfff}\x{fffe}\x{ffff}])/sprintf("&#x%x;",ord($1))/sge;
+  Encode::_utf8_off($oct);
+  return $oct;
+}
+
+
+our $opt_k;
+our $opt_e;
+our $opt_d;
+our $opt_u;
+our $opt_h;
+
+&getopts("k:e:d:uh") || die "ERROR: No such option. -h for help\n";
+&usage if ($opt_h);
+
+sub usage(){
+  print "\nUsage: $0 [-h][-u][-v VERSION][-k KWDFILE][-e EULADIR][-d REPOPATH]\n\n";
+  print "         -u   use unique filenames\n";
+  print "         -k = path to keyword file\n";
+  print "         -e = path to eula directory\n";
+  print "         -d = path to repository\n";
+  print "         -h   this text\n";
+  exit;
+}
+
+sub filedata {
+  my ($repodir, $filename, $datatype, $unique_filenames) = @_;
+  my $result;
+  $result->{'type'} = $datatype;
+  $result->{'location'}->{'href'} = "repodata/$filename";
+  print "INFO: reading $repodir/repodata/$filename\n";
+  open (F, "<", "$repodir/repodata/$filename");
+  my $ctx_a = Digest->new($checksum_type);
+  $ctx_a->addfile(*F);
+  my $checksum_a = $ctx_a->hexdigest();
+  close (F);
+  $result->{'checksum'} = { 'type' => $checksum_type_md, '_content' => $checksum_a };
+
+  my $stat_a = stat("$repodir/repodata/$filename");
+  $result->{'timestamp'} = $stat_a->mtime;
+  $result->{'size'} = $stat_a->size;
+
+  if ($filename =~ /\.gz/) {
+    open (F, "-|", "gzip -dc $repodir/repodata/$filename");
+    my $buffer_b = join("", <F>);
+    close (F);
+    $result->{'open-size'} = length($buffer_b);
+    my $ctx_b = Digest->new($checksum_type);
+    $ctx_b->add($buffer_b);
+    my $checksum_b = $ctx_b->hexdigest();
+    $result->{'open-checksum'} = { 'type' => $checksum_type_md, '_content' => $checksum_b };
+  }
+
+  if ($unique_filenames) {
+    my $target_filename = $checksum_a."-".$filename;
+    rename "$repodir/repodata/$filename","$repodir/repodata/$target_filename";
+    $result->{'location'}->{'href'} = "repodata/$target_filename"
+  }
+  return $result;
+}
+
+my $eula_dir;
+my $kwd_file;
+my $repo_dir;
+my $unique_filenames;
+
+$eula_dir = $opt_e if $opt_e;
+$kwd_file = $opt_k if $opt_k;
+$repo_dir = $opt_d if $opt_d;
+$unique_filenames = 1 if $opt_u;
+
+die "no repository specified" unless $repo_dir;
+unless ($eula_dir || $kwd_file) {
+  print "no eulas or keywords, NOOP\n";
+  exit 0;
+}
+
+die "repo dir $repo_dir is not a directory\n" unless -d $repo_dir;
+die "repo dir $repo_dir has no repodata subdir \n" unless -d "$repo_dir/repodata";
+
+my $keyword_data;
+if ($kwd_file && -f $kwd_file) {
+  print "INFO: reading keyword file\n";
+  $keyword_data = ReadKeywordFile($kwd_file) if $kwd_file && -f $kwd_file;
+}
+
+my $eula_data;
+if ($eula_dir && -d $eula_dir) {
+  print "INFO: reading eula data\n";
+  opendir(DIR,"$eula_dir") || die "ERROR: could not open eula directory\n";
+  for (readdir(DIR)) {
+    next if /^\./;
+    my $pack = $_;
+    my $packname = $pack;
+    $packname =~ s/\.en$//;
+    open(EULA, "<", "$eula_dir/$pack");
+    my @eula = <EULA>;
+    close (EULA);
+    $eula_data->{$packname} = join("",@eula);
+  }
+  closedir(DIR);
+}
+
+print "INFO: reading repomd.xml\n";
+open(REPOMD, "<", "$repo_dir/repodata/repomd.xml");
+my $repomd_raw = join("",<REPOMD>);
+close (REPOMD);
+my $repomd = XMLin($ABXML::repomd, $repomd_raw);
+my $prim_data = (grep { $_->{'type'} eq 'primary' } @{$repomd->{'data'}})[0];
+my $prim_filename = $prim_data->{'location'}->{'href'};
+
+print "INFO: reading primary $prim_filename\n";
+my $prgz = gzopen("$repo_dir/$prim_filename", "rb");
+my $buffer;
+my $prim_xml;
+while ($prgz->gzread($buffer,1048576)) {
+  $prim_xml .= $buffer;
+}
+my $primary = XMLin($ABXML::primary,$prim_xml);
+$prim_xml = "";
+
+print "INFO: processing packages from primary\n";
+my @suse;
+for my $pack (@{$primary->{'package'}}) {
+ next unless $keyword_data->{$pack->{'name'}};
+ my $data;
+ my $pkgid = (grep {$_->{'pkgid'}} @{$pack->{'checksum'}})[0]->{'_content'};
+ $data->{'pkgid'} = $pkgid;
+ for my $field (qw(name arch version)) {
+   $data->{$field} = $pack->{$field};
+ }
+ if ($keyword_data->{$pack->{'name'}}) {
+    push @{$data->{'keyword'}}, { '_content' => $_ } for @{$keyword_data->{$pack->{'name'}}};
+ }
+ $data->{'eula'} = str2utf8xml($eula_data->{$pack->{'name'}}) if $eula_data && $eula_data->{$pack->{'name'}};
+ push @suse, $data;
+}
+
+print "INFO: writing out susedata\n";
+my $susedata = {
+ 'xmlns' => 'http://linux.duke.edu/metadata/susedata',
+ 'packages' => scalar(@suse),
+ 'package' => \@suse,
+};
+
+my $susedata_content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+$susedata_content .= XMLout($ABXML::susedata, $susedata);
+
+my $gz = gzopen("$repo_dir/repodata/susedata.xml.gz", "wb");
+$gz->gzwrite($susedata_content);
+$gz->gzclose();
+
+my @new_repomd_data = grep { $_->{'type'} ne 'susedata' && $_->{'type'} ne 'appdata' && $_->{'type'} ne 'app-icons'} @{$repomd->{'data'}};
+
+print "INFO: writing out repomd\n";
+push @new_repomd_data, filedata($repo_dir, "susedata.xml.gz", 'susedata', $unique_filenames);
+
+push @new_repomd_data, filedata($repo_dir, "appdata.xml.gz", "appdata", $unique_filenames) if -f "$repo_dir/repodata/appdata.xml.gz";
+
+push @new_repomd_data, filedata($repo_dir, "app-icons.tar.gz", "app-icons", $unique_filenames) if -f "$repo_dir/repodata/app-icons.tar.gz";
+
+$repomd->{'data'} = \@new_repomd_data;
+
+open (REPOMD, ">", "$repo_dir/repodata/repomd.xml");
+print REPOMD "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+print REPOMD XMLout($ABXML::repomd, $repomd);
+close (REPOMD);
+
+print "INFO: written out repomd\n";
+
