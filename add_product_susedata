@@ -15,9 +15,19 @@ use Encode;
 use FileHandle;
 use File::stat;
 use Data::Dumper;
+use Locale::gettext;
+use POSIX;     # Needed for setlocale()
+
 
 my $checksum_type = "SHA-256";
 my $checksum_type_md = "sha256";
+
+# i18n is done via en locale only:
+
+$ENV{'LC_ALL'} = 'en_US.UTF-8';
+setlocale(LC_MESSAGES, "en_US.UTF-8");
+setlocale(LC_ALL, "en_US.UTF-8");
+
 
 sub OpenFileRead {
   my $filename = shift;
@@ -235,10 +245,7 @@ $unique_filenames = 1 if $opt_u;
 $diskusage = 1 if $opt_p;
 
 die "no repository specified" unless $repo_dir;
-unless ($eula_dir || $kwd_file) {
-  print "no eulas or keywords, NOOP\n";
-  exit 0;
-}
+print "no eulas or keywords, translations only\n" unless $eula_dir || $kwd_file;
 
 die "repo dir $repo_dir is not a directory\n" unless -d $repo_dir;
 die "repo dir $repo_dir has no repodata subdir \n" unless -d "$repo_dir/repodata";
@@ -306,6 +313,56 @@ for my $pack (@{$primary->{'package'}}) {
  push @suse, $data;
 }
 
+my @new_repomd_data = grep { $_->{'type'} ne 'susedata' && $_->{'type'} ne 'appdata' && $_->{'type'} ne 'app-icons'} @{$repomd->{'data'}};
+
+# i18n
+# get language list, there should be a better way?
+local *D;
+opendir(D, "/usr/share/locale/en_US/LC_MESSAGES/");
+my @languages;
+while(readdir(D)) {
+  if ($_ =~ "^package-translations-\(.*\).mo\$") {
+    push @languages, $1;
+  }
+}
+closedir D;
+
+for my $language (@languages) {
+  textdomain("package-translations-$language");
+  my @i18n;
+  for my $pack (@{$primary->{'package'}}) {
+    my $data;
+    my $pkgid = (grep {$_->{'pkgid'}} @{$pack->{'checksum'}})[0]->{'_content'};
+    $data->{'pkgid'} = $pkgid;
+    for my $field (qw(name arch version)) {
+      $data->{$field} = $pack->{$field};
+    }
+    my $summary     = $pack->{'summary'}[0]->{'_content'};
+    my $description = $pack->{'description'}[0]->{'_content'};
+    my $i18n_summary     = gettext($summary);
+    my $i18n_description = gettext($description);
+    next if $summary == $i18n_summary && $description == $i18n_description;
+
+    $data->{'summary'} = { 'lang' => $language, '_content' => $i18n_summary };
+    $data->{'description'} = { 'lang' => $language, '_content' => $i18n_description };
+    push @i18n, $data;
+  }
+
+  my $i18ndata = {
+   'xmlns' => 'http://linux.duke.edu/metadata/susedata',
+   'packages' => scalar(@i18n),
+   'package' => \@i18n,
+  };
+  my $susedata_content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+  $susedata_content .= XMLout($ABXML::susedata_i18n, $i18ndata);
+
+  my $gz = gzopen("$repo_dir/repodata/susedata.$language.xml.gz", "wb");
+  $gz->gzwrite($susedata_content);
+  $gz->gzclose();
+
+  push @new_repomd_data, filedata($repo_dir, "susedata.$language.xml.gz", "susedata.$language", $unique_filenames);
+}
+
 print "INFO: writing out susedata\n";
 my $susedata = {
  'xmlns' => 'http://linux.duke.edu/metadata/susedata',
@@ -319,8 +376,6 @@ $susedata_content .= XMLout($ABXML::susedata, $susedata);
 my $gz = gzopen("$repo_dir/repodata/susedata.xml.gz", "wb");
 $gz->gzwrite($susedata_content);
 $gz->gzclose();
-
-my @new_repomd_data = grep { $_->{'type'} ne 'susedata' && $_->{'type'} ne 'appdata' && $_->{'type'} ne 'app-icons'} @{$repomd->{'data'}};
 
 print "INFO: writing out repomd\n";
 push @new_repomd_data, filedata($repo_dir, "susedata.xml.gz", 'susedata', $unique_filenames);
