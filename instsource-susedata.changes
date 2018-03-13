@@ -1,0 +1,42 @@
+-------------------------------------------------------------------
+Mon Oct 17 11:01:28 UTC 2016 - jengelh@inai.de
+
+- Update descriptions
+
+-------------------------------------------------------------------
+Tue Sep 27 17:41:40 CEST 2016 - ro@suse.de
+
+- use is_opensuse for requiring proper EULAs package 
+
+-------------------------------------------------------------------
+Tue Jul 26 12:32:44 CEST 2016 - ro@suse.de
+
+- add option "-p" for adding diskusage information to susedata
+  (fate#320517) 
+
+-------------------------------------------------------------------
+Wed Mar 12 11:30:26 CET 2014 - ro@suse.de
+
+- re-add missing function str2utf8xml
+
+-------------------------------------------------------------------
+Tue Mar  4 15:05:34 CET 2014 - ro@suse.de
+
+- add appdata.xml.gz and app-icons.tar.gz if exising 
+
+-------------------------------------------------------------------
+Tue Mar  4 12:28:08 CET 2014 - ro@suse.de
+
+- drop use of BSUtil.pm 
+- drop private copy of ABXML.pm (will be added to inst-source-utils)
+
+-------------------------------------------------------------------
+Wed Feb 26 01:25:46 CET 2014 - ro@suse.de
+
+- first working version
+
+-------------------------------------------------------------------
+Tue Feb 25 13:49:54 CET 2014 - ro@suse.de
+
+- created initial package 
+
