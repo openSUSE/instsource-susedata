@@ -23,7 +23,6 @@ my $checksum_type = "SHA-256";
 my $checksum_type_md = "sha256";
 
 # i18n is done via en locale only:
-
 $ENV{'LC_ALL'} = 'en_US.UTF-8';
 setlocale(LC_MESSAGES, "en_US.UTF-8");
 setlocale(LC_ALL, "en_US.UTF-8");
@@ -313,11 +312,10 @@ for my $pack (@{$primary->{'package'}}) {
  push @suse, $data;
 }
 
-my @new_repomd_data = grep { $_->{'type'} ne 'susedata' && $_->{'type'} ne 'appdata' && $_->{'type'} ne 'app-icons'} @{$repomd->{'data'}};
+my @new_repomd_data = grep { $_->{'type'} !~ /^susedata/ && $_->{'type'} ne 'appdata' && $_->{'type'} ne 'app-icons'} @{$repomd->{'data'}};
 
 # i18n
 # get language list, there should be a better way?
-local *D;
 opendir(D, "/usr/share/locale/en_US/LC_MESSAGES/");
 my @languages;
 while(readdir(D)) {
@@ -327,7 +325,8 @@ while(readdir(D)) {
 }
 closedir D;
 
-for my $language (@languages) {
+for my $language (sort(@languages)) {
+  next if $language eq 'en';
   textdomain("package-translations-$language");
   my @i18n;
   for my $pack (@{$primary->{'package'}}) {
@@ -341,7 +340,7 @@ for my $language (@languages) {
     my $description = $pack->{'description'}[0]->{'_content'};
     my $i18n_summary     = gettext($summary);
     my $i18n_description = gettext($description);
-    next if $summary == $i18n_summary && $description == $i18n_description;
+    next if $summary eq $i18n_summary && $description eq $i18n_description;
 
     $data->{'summary'} = { 'lang' => $language, '_content' => $i18n_summary };
     $data->{'description'} = { 'lang' => $language, '_content' => $i18n_description };
