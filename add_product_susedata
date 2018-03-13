@@ -7,6 +7,7 @@ BEGIN {
 
 use XML::Structured ':bytes';
 use ABXML;
+use RPMQ;
 use Digest;
 use Getopt::Std;
 use Compress::Zlib;
@@ -99,13 +100,15 @@ our $opt_e;
 our $opt_d;
 our $opt_u;
 our $opt_h;
+our $opt_p;
 
-&getopts("k:e:d:uh") || die "ERROR: No such option. -h for help\n";
+&getopts("k:e:d:uph") || die "ERROR: No such option. -h for help\n";
 &usage if ($opt_h);
 
 sub usage(){
   print "\nUsage: $0 [-h][-u][-v VERSION][-k KWDFILE][-e EULADIR][-d REPOPATH]\n\n";
   print "         -u   use unique filenames\n";
+  print "         -p   add diskusage data\n";
   print "         -k = path to keyword file\n";
   print "         -e = path to eula directory\n";
   print "         -d = path to repository\n";
@@ -149,15 +152,87 @@ sub filedata {
   return $result;
 }
 
+sub calcdudata {
+  my ($rpm, $maxdepth) = @_;
+  my %q = RPMQ::rpmq_many($rpm, 1027, 1028, 1030, 1095, 1096, 1116, 1117, 1118);
+  if (!$q{1027}) {
+    $q{1027} = $q{1117} || [];
+    my @di = @{$q{1116} || []};
+    $_ = $q{1118}->[shift @di] . $_ for @{$q{1027}};
+  }
+  my @modes = @{$q{1030} || []};
+  my @devs = @{$q{1095} || []};
+  my @inos = @{$q{1096} || []};
+  my @names = @{$q{1027} || []};
+  my @sizes = @{$q{1028} || []};
+  my %seen;
+  my %dirnum;
+  my %subdirnum;
+  my %dirsize;
+  my %subdirsize;
+  my ($name, $first);
+  for $name (@names) {
+    my $mode = shift @modes;
+    my $dev = shift @devs;
+    my $ino = shift @inos;
+    my $size = shift @sizes;
+    # strip leading slash
+    # prefix is either empty or ends in /
+    $name = "usr/src/packages/$name" unless $name =~ s/^\///;
+
+    # check if regular file
+    next if ($mode & 0170000) != 0100000;
+    # don't count hardlinks twice
+    next if $seen{"$dev $ino"};
+    $seen{"$dev $ino"} = 1;
+
+    # rounded size in kbytes
+    $size = int ($size / 1024) + 1;
+
+    $name = '' unless $name =~ s/\/[^\/]*$//;
+    if (($name =~ tr/\///) < $maxdepth) {
+      $dirsize{"$name/"} += $size;
+      $dirnum{"$name/"} += 1;
+      $subdirsize{"$name/"} ||= 0;    # so we get all keys
+    }
+    # traverse though path stripping components from the back
+    $name =~ s/\/[^\/]*$// while ($name =~ tr/\///) > $maxdepth;
+
+    while ($name ne '') {
+      $name = '' unless $name =~ s/\/[^\/]*$//;
+      $subdirsize{"$name/"} += $size;
+      $subdirnum{"$name/"} += 1;
+    }
+  }
+  my @dulist;
+  for $name (sort keys %subdirsize) {
+    next unless $dirsize{$name} || $subdirsize{$name};
+    $dirsize{$name} ||= 0;
+    $subdirsize{$name} ||= 0;
+    $dirnum{$name} ||= 0;
+    $subdirnum{$name} ||= 0;
+    # SUSETAGS: "$name $dirsize{$name} $subdirsize{$name} $dirnum{$name} $subdirnum{$name}";
+
+    # workaround for libsolv parser bug, make sure dir starts with '/'
+    my $xname = $name;
+    $xname = "/$xname" unless $xname =~ /^\//;
+    push @dulist, { 'name' => $xname, 'size' => $dirsize{$name} + $subdirsize{$name}, 'count' => $dirnum{$name} + $subdirnum{$name} };
+  }
+  return { 'dirs' => { 'dir' => \@dulist } };
+}
+
+
 my $eula_dir;
 my $kwd_file;
 my $repo_dir;
 my $unique_filenames;
+my $diskusage;
 
 $eula_dir = $opt_e if $opt_e;
 $kwd_file = $opt_k if $opt_k;
 $repo_dir = $opt_d if $opt_d;
 $unique_filenames = 1 if $opt_u;
+$diskusage = 1 if $opt_p;
 
 die "no repository specified" unless $repo_dir;
 unless ($eula_dir || $kwd_file) {
@@ -212,9 +287,9 @@ $prim_xml = "";
 print "INFO: processing packages from primary\n";
 my @suse;
 for my $pack (@{$primary->{'package'}}) {
- next unless $keyword_data->{$pack->{'name'}};
  my $data;
  my $pkgid = (grep {$_->{'pkgid'}} @{$pack->{'checksum'}})[0]->{'_content'};
+ my $pkgpath = $pack->{'location'}->{'href'};
  $data->{'pkgid'} = $pkgid;
  for my $field (qw(name arch version)) {
    $data->{$field} = $pack->{$field};
@@ -223,6 +298,11 @@ for my $pack (@{$primary->{'package'}}) {
     push @{$data->{'keyword'}}, { '_content' => $_ } for @{$keyword_data->{$pack->{'name'}}};
  }
  $data->{'eula'} = str2utf8xml($eula_data->{$pack->{'name'}}) if $eula_data && $eula_data->{$pack->{'name'}};
+ if ($pkgpath && $diskusage) {
+    my $du = calcdudata("$repo_dir/$pkgpath", 3);
+    $data->{'diskusage'} = $du if $du;
+ }
+ next unless $data->{'keyword'} || $data->{'eula'} || $data->{'diskusage'};
  push @suse, $data;
 }
 
