@@ -3,7 +3,7 @@ Tue Mar 13 12:23:40 UTC 2018 - adrian@suse.de
 
 - update to version 0.2
   * creates i18n susedata files
-- transfer source into git
+- transfer source into git (including instsource-susedata-diskusage.patch)
 
 -------------------------------------------------------------------
 Mon Oct 17 11:01:28 UTC 2016 - jengelh@inai.de
