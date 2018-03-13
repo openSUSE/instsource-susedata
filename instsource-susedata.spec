@@ -22,8 +22,7 @@ License:        GPL-2.0
 Group:          System/Management
 Version:        0.1
 Release:        0
-Source:         %{name}-%{version}.tar.bz2
-Patch0:         instsource-susedata-diskusage.patch
+Source:         %{name}-%{version}.tar.xz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 %if 0%{?is_opensuse}
 Requires:       openSUSE-EULAs
@@ -40,7 +39,6 @@ This utility scans repodata and adds susedata and EULAs where needed.
 
 %prep
 %setup -q
-%patch0 -p0
 
 %build
 # empty because of rpmlint warning rpm-buildroot-usage
