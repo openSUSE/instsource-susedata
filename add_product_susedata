@@ -312,10 +312,12 @@ for my $pack (@{$primary->{'package'}}) {
  push @suse, $data;
 }
 
+print "INFO: cleanup\n";
 my @new_repomd_data = grep { $_->{'type'} !~ /^susedata/ && $_->{'type'} ne 'appdata' && $_->{'type'} ne 'app-icons'} @{$repomd->{'data'}};
 
 # i18n
 # get language list, there should be a better way?
+print "INFO: i18n\n";
 opendir(D, "/usr/share/locale/en_US/LC_MESSAGES/");
 my @languages;
 while(readdir(D)) {
@@ -326,6 +328,7 @@ while(readdir(D)) {
 closedir D;
 
 for my $language (sort(@languages)) {
+  print "INFO: translate $language\n";
   next if $language eq 'en';
   textdomain("package-translations-$language");
   my @i18n;
@@ -359,6 +362,7 @@ for my $language (sort(@languages)) {
   $gz->gzwrite($susedata_content);
   $gz->gzclose();
 
+  print "INFO: add susedata.$language\n";
   push @new_repomd_data, filedata($repo_dir, "susedata.$language.xml.gz", "susedata.$language", $unique_filenames);
 }
 
@@ -380,8 +384,8 @@ print "INFO: writing out repomd\n";
 push @new_repomd_data, filedata($repo_dir, "susedata.xml.gz", 'susedata', $unique_filenames);
 
 push @new_repomd_data, filedata($repo_dir, "appdata.xml.gz", "appdata", $unique_filenames) if -f "$repo_dir/repodata/appdata.xml.gz";
-
-push @new_repomd_data, filedata($repo_dir, "app-icons.tar.gz", "app-icons", $unique_filenames) if -f "$repo_dir/repodata/app-icons.tar.gz";
+push @new_repomd_data, filedata($repo_dir, "appdata-screenshots.tar", "appdata-screenshots", $unique_filenames) if -f "$repo_dir/repodata/appdata-screenshots.tar";
+push @new_repomd_data, filedata($repo_dir, "appdata-icons.tar.gz", "appdata-icons", $unique_filenames) if -f "$repo_dir/repodata/appdata-icons.tar.gz";
 
 $repomd->{'data'} = \@new_repomd_data;
 
