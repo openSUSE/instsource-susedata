@@ -343,10 +343,14 @@ for my $language (sort(@languages)) {
     my $description = $pack->{'description'}[0]->{'_content'};
     my $i18n_summary     = gettext($summary);
     my $i18n_description = gettext($description);
-    next if $summary eq $i18n_summary && $description eq $i18n_description;
 
-    $data->{'summary'} = { 'lang' => $language, '_content' => $i18n_summary };
-    $data->{'description'} = { 'lang' => $language, '_content' => $i18n_description };
+    my $eula_key = $pack->{'name'}.".".$language;
+    $data->{'eula'} = str2utf8xml($eula_data->{$eula_key}) if $eula_data && $eula_data->{$eula_key};
+
+    $data->{'summary'} = { 'lang' => $language, '_content' => $i18n_summary } if $summary ne $i18n_summary;
+    $data->{'description'} = { 'lang' => $language, '_content' => $i18n_description } if $description ne $i18n_description;
+
+    next unless $data;
     push @i18n, $data;
   }
 
