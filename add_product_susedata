@@ -335,10 +335,6 @@ for my $language (sort(@languages)) {
   for my $pack (@{$primary->{'package'}}) {
     my $data;
     my $pkgid = (grep {$_->{'pkgid'}} @{$pack->{'checksum'}})[0]->{'_content'};
-    $data->{'pkgid'} = $pkgid;
-    for my $field (qw(name arch version)) {
-      $data->{$field} = $pack->{$field};
-    }
     my $summary     = $pack->{'summary'}[0]->{'_content'};
     my $description = $pack->{'description'}[0]->{'_content'};
     my $i18n_summary     = gettext($summary);
@@ -346,11 +342,14 @@ for my $language (sort(@languages)) {
 
     my $eula_key = $pack->{'name'}.".".$language;
     $data->{'eula'} = str2utf8xml($eula_data->{$eula_key}) if $eula_data && $eula_data->{$eula_key};
-
     $data->{'summary'} = { 'lang' => $language, '_content' => $i18n_summary } if $summary ne '' && $summary ne $i18n_summary;
     $data->{'description'} = { 'lang' => $language, '_content' => $i18n_description } if $description ne '' && $description ne $i18n_description;
-
     next unless $data;
+
+    $data->{'pkgid'} = $pkgid;
+    for my $field (qw(name arch version)) {
+      $data->{$field} = $pack->{$field};
+    }
     push @i18n, $data;
   }
 
