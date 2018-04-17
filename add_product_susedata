@@ -347,8 +347,8 @@ for my $language (sort(@languages)) {
     my $eula_key = $pack->{'name'}.".".$language;
     $data->{'eula'} = str2utf8xml($eula_data->{$eula_key}) if $eula_data && $eula_data->{$eula_key};
 
-    $data->{'summary'} = { 'lang' => $language, '_content' => $i18n_summary } if $summary ne $i18n_summary;
-    $data->{'description'} = { 'lang' => $language, '_content' => $i18n_description } if $description ne $i18n_description;
+    $data->{'summary'} = { 'lang' => $language, '_content' => $i18n_summary } if $summary ne '' && $summary ne $i18n_summary;
+    $data->{'description'} = { 'lang' => $language, '_content' => $i18n_description } if $description ne '' && $description ne $i18n_description;
 
     next unless $data;
     push @i18n, $data;
