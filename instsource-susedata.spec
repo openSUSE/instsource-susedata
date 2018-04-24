@@ -1,7 +1,7 @@
 #
 # spec file for package instsource-susedata
 #
-# Copyright (c) 2016 SUSE LINUX GmbH, Nuernberg, Germany.
+# Copyright (c) 2018 SUSE LINUX GmbH, Nuernberg, Germany.
 #
 # All modifications and additions to the file contributed by third parties
 # remain the property of their copyright owners, unless otherwise agreed
@@ -18,9 +18,9 @@
 
 Name:           instsource-susedata
 Summary:        Utility to add susedata to repomd metadata
-License:        GPL-2.0
+License:        GPL-2.0-only
 Group:          System/Management
-Version:        0.1
+Version:        0.3.3
 Release:        0
 Source:         %{name}-%{version}.tar.xz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
@@ -29,8 +29,12 @@ Requires:       openSUSE-EULAs
 %else
 Requires:       SLE-EULAs
 %endif
-Requires:       perl-XML-Structured
+BuildRequires:  inst-source-utils
+BuildRequires:  perl(Locale::gettext)
+BuildRequires:  perl(XML::Structured)
 Requires:       inst-source-utils
+Requires:       perl(Locale::gettext)
+Requires:       perl(XML::Structured)
 Supplements:    kiwi-instsource
 BuildArch:      noarch
 
@@ -41,7 +45,7 @@ This utility scans repodata and adds susedata and EULAs where needed.
 %setup -q
 
 %build
-# empty because of rpmlint warning rpm-buildroot-usage
+perl -wc add_product_susedata || exit 1
 
 %install
 mkdir -p $RPM_BUILD_ROOT/usr/bin
