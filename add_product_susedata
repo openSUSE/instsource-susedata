@@ -17,6 +17,7 @@ use File::stat;
 use Data::Dumper;
 use Locale::gettext;
 use POSIX;     # Needed for setlocale()
+use URI::Escape;
 
 
 my $checksum_type = "SHA-256";
@@ -337,13 +338,23 @@ for my $language (sort(@languages)) {
     my $pkgid = (grep {$_->{'pkgid'}} @{$pack->{'checksum'}})[0]->{'_content'};
     my $summary     = $pack->{'summary'}[0]->{'_content'};
     my $description = $pack->{'description'}[0]->{'_content'};
+    my $category;
+    if ($pack->{'format'}->{'rpm:provides'}->{'rpm:entry'}) {
+      for $p (@{$pack->{'format'}->{'rpm:provides'}->{'rpm:entry'}}) {
+          next unless $p->{'name'} eq 'pattern-category()';
+          $category = uri_unescape($p->{'ver'});
+          break; # we expect only one category
+      }
+    }
     my $i18n_summary     = gettext($summary);
     my $i18n_description = gettext($description);
+    my $i18n_category    = $category?gettext($category):undef;
 
     my $eula_key = $pack->{'name'}.".".$language;
     $data->{'eula'} = str2utf8xml($eula_data->{$eula_key}) if $eula_data && $eula_data->{$eula_key};
     $data->{'summary'} = { 'lang' => $language, '_content' => $i18n_summary } if $summary ne '' && $summary ne $i18n_summary;
     $data->{'description'} = { 'lang' => $language, '_content' => $i18n_description } if $description ne '' && $description ne $i18n_description;
+    $data->{'pattern-category'} = { 'lang' => $language, '_content' => $i18n_category } if $category && $category ne $i18n_category;
     next unless $data;
 
     $data->{'pkgid'} = $pkgid;
