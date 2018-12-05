@@ -52,8 +52,7 @@ mkdir -p $RPM_BUILD_ROOT/usr/bin
 install -m 755 add_product_susedata $RPM_BUILD_ROOT/usr/bin
 
 %files
-%defattr(-, root, root)
-%doc COPYING
+%license COPYING
 /usr/bin/add_product_susedata
 
 %changelog
