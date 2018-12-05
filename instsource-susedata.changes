@@ -1,4 +1,10 @@
 -------------------------------------------------------------------
+Wed Dec  5 14:58:23 UTC 2018 - Adrian Schröter <adrian@suse.de>
+
+- update to version 0.3.4
+  * Add pattern-category (fate#323785)
+
+-------------------------------------------------------------------
 Tue Apr 24 11:31:39 UTC 2018 - adrian@suse.de
 
 - update to version 0.3.3
