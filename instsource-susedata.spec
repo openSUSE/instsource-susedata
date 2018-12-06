@@ -12,7 +12,7 @@
 # license that conforms to the Open Source Definition (Version 1.9)
 # published by the Open Source Initiative.
 
-# Please submit bugfixes or comments via http://bugs.opensuse.org/
+# Please submit bugfixes or comments via https://bugs.opensuse.org/
 #
 
 
@@ -20,7 +20,7 @@ Name:           instsource-susedata
 Summary:        Utility to add susedata to repomd metadata
 License:        GPL-2.0-only
 Group:          System/Management
-Version:        0.3.3
+Version:        0.3.4
 Release:        0
 Source:         %{name}-%{version}.tar.xz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
@@ -31,9 +31,11 @@ Requires:       SLE-EULAs
 %endif
 BuildRequires:  inst-source-utils
 BuildRequires:  perl(Locale::gettext)
+BuildRequires:  perl(URI::Escape)
 BuildRequires:  perl(XML::Structured)
 Requires:       inst-source-utils
 Requires:       perl(Locale::gettext)
+Requires:       perl(URI::Escape)
 Requires:       perl(XML::Structured)
 Supplements:    kiwi-instsource
 BuildArch:      noarch
@@ -44,7 +46,7 @@ This utility scans repodata and adds susedata and EULAs where needed.
 %prep
 %setup -q
 
-%build
+%check
 perl -wc add_product_susedata || exit 1
 
 %install
