@@ -24,11 +24,7 @@ Version:        0.3.4
 Release:        0
 Source:         %{name}-%{version}.tar.xz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
-%if 0%{?is_opensuse}
-Requires:       openSUSE-EULAs
-%else
-Requires:       SLE-EULAs
-%endif
+Requires:       package-EULAs
 BuildRequires:  inst-source-utils
 BuildRequires:  perl(Locale::gettext)
 BuildRequires:  perl(URI::Escape)
