@@ -111,14 +111,16 @@ our $opt_d;
 our $opt_u;
 our $opt_h;
 our $opt_p;
+our $opt_g;
 
-&getopts("k:e:d:uph") || die "ERROR: No such option. -h for help\n";
+&getopts("k:e:d:upgh") || die "ERROR: No such option. -h for help\n";
 &usage if ($opt_h);
 
 sub usage(){
   print "\nUsage: $0 [-h][-u][-v VERSION][-k KWDFILE][-e EULADIR][-d REPOPATH]\n\n";
   print "         -u   use unique filenames\n";
   print "         -p   add diskusage data\n";
+  print "         -g   add gpg key tags\n";
   print "         -k = path to keyword file\n";
   print "         -e = path to eula directory\n";
   print "         -d = path to repository\n";
@@ -237,12 +239,14 @@ my $kwd_file;
 my $repo_dir;
 my $unique_filenames;
 my $diskusage;
+my $gpgkeys;
 
 $eula_dir = $opt_e if $opt_e;
 $kwd_file = $opt_k if $opt_k;
 $repo_dir = $opt_d if $opt_d;
 $unique_filenames = 1 if $opt_u;
 $diskusage = 1 if $opt_p;
+$gpgkeys = 1 if $opt_g;
 
 die "no repository specified" unless $repo_dir;
 print "no eulas or keywords, translations only\n" unless $eula_dir || $kwd_file;
@@ -305,7 +309,7 @@ for my $pack (@{$primary->{'package'}}) {
    for $p (@{$pack->{'format'}->{'rpm:provides'}->{'rpm:entry'}}) {
        next unless $p->{'name'} eq 'pattern-category()';
        $data->{'pattern-category'} = uri_unescape($p->{'ver'});
-       break; # we expect only one category
+       last; # we expect only one category
    }
  }
  if ($keyword_data->{$pack->{'name'}}) {
@@ -350,7 +354,7 @@ for my $language (sort(@languages)) {
       for $p (@{$pack->{'format'}->{'rpm:provides'}->{'rpm:entry'}}) {
           next unless $p->{'name'} eq 'pattern-category()';
           $category = uri_unescape($p->{'ver'});
-          break; # we expect only one category
+          last; # we expect only one category
       }
     }
     my $i18n_summary     = gettext($summary);
@@ -409,6 +413,19 @@ push @new_repomd_data, filedata($repo_dir, "appdata-screenshots.tar", "appdata-s
 push @new_repomd_data, filedata($repo_dir, "appdata-icons.tar.gz", "appdata-icons", $unique_filenames) if -f "$repo_dir/repodata/appdata-icons.tar.gz";
 
 $repomd->{'data'} = \@new_repomd_data;
+
+if ($gpgkeys) {
+  my @new_repomd_tags_content;
+  @new_repomd_tags_content = grep { $_ !~ /^gpg-pubkey/ } @{$repomd->{'tags'}->{'content'}} if $repomd->{'tags'} && $repomd->{'tags'}->{'content'};
+  print "INFO: adding gpg key tags\n";
+  opendir(DIR,"$repo_dir") || die "ERROR: could not open repo base directory\n";
+  for (readdir(DIR)) {
+    next unless /^gpg-pubkey-/;
+    push @new_repomd_tags_content, $_;
+  }
+  closedir(DIR);
+  $repomd->{'tags'}->{'content'} = \@new_repomd_tags_content if @new_repomd_tags_content;
+}
 
 open (REPOMD, ">", "$repo_dir/repodata/repomd.xml");
 print REPOMD "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
