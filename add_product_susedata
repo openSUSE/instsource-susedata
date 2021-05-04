@@ -421,7 +421,18 @@ if ($gpgkeys) {
   opendir(DIR,"$repo_dir") || die "ERROR: could not open repo base directory\n";
   for (readdir(DIR)) {
     next unless /^gpg-pubkey-/;
-    push @new_repomd_tags_content, $_;
+    my $filename = $_;
+    my $fpr = "";
+    open(GPG,"gpg --no-keyring --no-default-keyring --with-colons --import-options show-only --import --fingerprint < $repo_dir/$_ |") || die "could not call gpg";
+    while(<GPG>) {
+	    chomp();
+	    next unless /^fpr:/;
+	    my @gline = split(":",$_);
+	    $fpr = "?fpr=$gline[9]";
+	    last; # only the main sig, not subkey fingerprints
+    }
+    close (GPG);
+    push @new_repomd_tags_content, "$filename$fpr";
   }
   closedir(DIR);
   $repomd->{'tags'}->{'content'} = \@new_repomd_tags_content if @new_repomd_tags_content;
