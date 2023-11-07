@@ -129,24 +129,26 @@ sub usage(){
 }
 
 sub filedata {
-  my ($repodir, $filename, $datatype, $unique_filenames) = @_;
+  my ($repo_dir, $filename, $datatype, $unique_filenames) = @_;
   my $result;
   $result->{'type'} = $datatype;
   $result->{'location'}->{'href'} = "repodata/$filename";
-  print "INFO: reading $repodir/repodata/$filename\n";
-  open (F, "<", "$repodir/repodata/$filename");
+  print "INFO: reading $repo_dir/repodata/$filename\n";
+  open (F, "<", "$repo_dir/repodata/$filename");
   my $ctx_a = Digest->new($checksum_type);
   $ctx_a->addfile(*F);
   my $checksum_a = $ctx_a->hexdigest();
   close (F);
   $result->{'checksum'} = { 'type' => $checksum_type_md, '_content' => $checksum_a };
 
-  my $stat_a = stat("$repodir/repodata/$filename");
+  my $stat_a = stat("$repo_dir/repodata/$filename");
   $result->{'timestamp'} = $stat_a->mtime;
   $result->{'size'} = $stat_a->size;
 
-  if ($filename =~ /\.gz/) {
-    open (F, "-|", "gzip -dc $repodir/repodata/$filename");
+  if ($filename =~ /\.(?:gz|zst)$/) {
+    my $decompressor = "gzip";
+    $decompressor = "zstd" if $filename =~ /\.zst$/;
+    open (F, "-|", "$decompressor -dc $repo_dir/repodata/$filename");
     my $buffer_b = join("", <F>);
     close (F);
     $result->{'open-size'} = length($buffer_b);
@@ -158,7 +160,7 @@ sub filedata {
 
   if ($unique_filenames) {
     my $target_filename = $checksum_a."-".$filename;
-    rename "$repodir/repodata/$filename","$repodir/repodata/$target_filename";
+    rename "$repo_dir/repodata/$filename","$repo_dir/repodata/$target_filename";
     $result->{'location'}->{'href'} = "repodata/$target_filename"
   }
   return $result;
@@ -286,12 +288,11 @@ my $prim_data = (grep { $_->{'type'} eq 'primary' } @{$repomd->{'data'}})[0];
 my $prim_filename = $prim_data->{'location'}->{'href'};
 
 print "INFO: reading primary $prim_filename\n";
-my $prgz = gzopen("$repo_dir/$prim_filename", "rb");
-my $buffer;
-my $prim_xml;
-while ($prgz->gzread($buffer,1048576)) {
-  $prim_xml .= $buffer;
-}
+my $prim_decompressor = "gzip";
+$prim_decompressor = "zstd" if $prim_filename =~ /\.zst$/;
+open (F, "-|", "$prim_decompressor -dc $repo_dir/$prim_filename");
+my $prim_xml = join("", <F>);
+close (F);
 my $primary = XMLin($ABXML::primary,$prim_xml);
 $prim_xml = "";
 
