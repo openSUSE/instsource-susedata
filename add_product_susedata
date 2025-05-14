@@ -309,7 +309,7 @@ for my $pack (@{$primary->{'package'}}) {
  if ($pack->{'format'}->{'rpm:provides'}->{'rpm:entry'}) {
    for $p (@{$pack->{'format'}->{'rpm:provides'}->{'rpm:entry'}}) {
        next unless $p->{'name'} eq 'pattern-category()';
-       $data->{'pattern-category'} = uri_unescape($p->{'ver'});
+       $data->{'category'} = uri_unescape($p->{'ver'});
        last; # we expect only one category
    }
  }
@@ -321,7 +321,7 @@ for my $pack (@{$primary->{'package'}}) {
     my $du = calcdudata("$repo_dir/$pkgpath", 3);
     $data->{'diskusage'} = $du if $du;
  }
- next unless $data->{'keyword'} || $data->{'eula'} || $data->{'diskusage'} || $data->{'pattern-category'};
+ next unless $data->{'keyword'} || $data->{'eula'} || $data->{'diskusage'} || $data->{'category'};
  push @suse, $data;
 }
 
@@ -366,7 +366,7 @@ for my $language (sort(@languages)) {
     $data->{'eula'} = str2utf8xml($eula_data->{$eula_key}) if $eula_data && $eula_data->{$eula_key};
     $data->{'summary'} = { 'lang' => $language, '_content' => $i18n_summary } if $summary ne '' && $summary ne $i18n_summary;
     $data->{'description'} = { 'lang' => $language, '_content' => $i18n_description } if $description ne '' && $description ne $i18n_description;
-    $data->{'pattern-category'} = { 'lang' => $language, '_content' => $i18n_category } if $category && $category ne $i18n_category;
+    $data->{'category'} = { 'lang' => $language, '_content' => $i18n_category } if $category && $category ne $i18n_category;
     next unless $data;
 
     $data->{'pkgid'} = $pkgid;
